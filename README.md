@@ -1,32 +1,82 @@
-# React + TypeScript + Vite
+# VictoryVendor
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Vendored dependencies for Victory.
 
-Currently, two official plugins are available:
+## Background
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+D3 has released most of its libraries as ESM-only. This means that consumers in Node.js applications can no longer just `require()` anything with a d3 transitive dependency, including much of Victory.
 
-## React Compiler
+To help provide an easy path to folks still using CommonJS in their Node.js applications that consume Victory, we now provide this package to vendor in various d3-related packages.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Packages
 
-## Expanding the Oxlint configuration
+We presently provide the following top-level libraries:
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+<!-- cat packages/victory-vendor/package.json | egrep '"d3-' | egrep -o 'd3-[^"]*'| sor t-->
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+- d3-ease
+- d3-interpolate
+- d3-scale
+- d3-shape
+- d3-timer
+
+This is the total list of top and transitive libraries we vendor:
+
+<!-- ls packages/victory-vendor/lib-vendor | sort -->
+
+- d3-array
+- d3-color
+- d3-ease
+- d3-format
+- d3-interpolate
+- d3-path
+- d3-scale
+- d3-shape
+- d3-time
+- d3-time-format
+- d3-timer
+- internmap
+
+Note that this does _not_ include the following D3 libraries that still support CommonJS:
+
+- d3-voronoi
+
+## How it works
+
+We provide two alternate paths and behaviors -- for ESM and CommonJS
+
+### ESM
+
+If you do a Node.js import like:
+
+```js
+import { interpolate } from "victory-vendor/d3-interpolate";
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+under the hood it's going to just re-export and pass you through to `node_modules/d3-interpolate`, the **real** ESM library from D3.
+
+### CommonJS
+
+If you do a Node.js import like:
+
+```js
+const { interpolate } = require("victory-vendor/d3-interpolate");
+```
+
+under the hood it's going to will go to an alternate path that contains the transpiled version of the underlying d3 library to be found at `victory-vendor/lib-vendor/d3-interpolate/**/*.js`. This futher has internally consistent import references to other `victory-vendor/lib-vendor/<pkg-name>` paths.
+
+Note that for some tooling (like Jest) that doesn't play well with `package.json:exports` routing to this CommonJS path, we **also** output a root file in the form of `victory-vendor/d3-interpolate.js`.
+
+## Licenses
+
+`victory-vendor` itself is released under the MIT license. It also bundles transpiled copies of third-party libraries (in `lib-vendor/`, used by the CommonJS build) that carry their own licenses:
+
+| Library                                                                                                                  | License              |
+| ------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| d3-array, d3-color, d3-format, d3-interpolate, d3-path, d3-scale, d3-shape, d3-time, d3-time-format, d3-timer, internmap | ISC                  |
+| d3-ease (includes Robert Penner's easing equations)                                                                      | BSD-3-Clause         |
+| d3-voronoi (includes Raymond Hill's Javascript-Voronoi, MIT)                                                             | BSD-3-Clause AND MIT |
+
+The combined SPDX expression is `MIT AND ISC AND BSD-3-Clause` (see `package.json:license`). The full text of every license is in the published package's `LICENSE.txt`, and each library's original license is also kept at `lib-vendor/<library>/LICENSE`.
+
+The ESM build (`es/`) re-exports the installed `d3-*` dependencies rather than bundling them, so ESM consumers get those licenses from the upstream packages directly.
